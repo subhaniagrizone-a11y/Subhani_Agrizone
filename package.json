@@ -9,17 +9,17 @@
   },
   "packageManager": "npm@10.2.4",
   "scripts": {
-    "dev": "%npm_node_execpath% --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev --webpack",
-    "dev:lowmem": "%npm_node_execpath% --max-old-space-size=3072 ./node_modules/next/dist/bin/next dev --webpack",
-    "dev:turbo": "%npm_node_execpath% --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev --turbo",
-    "build": "%npm_node_execpath% --max-old-space-size=6144 ./node_modules/next/dist/bin/next build",
-    "start": "%npm_node_execpath% ./node_modules/next/dist/bin/next start",
-    "lint": "%npm_node_execpath% ./node_modules/eslint/bin/eslint.js . --max-warnings=0",
-    "typecheck": "%npm_node_execpath% ./node_modules/typescript/bin/tsc --noEmit",
-    "prisma:generate": "%npm_node_execpath% ./node_modules/prisma/build/index.js generate",
-    "prisma:migrate": "%npm_node_execpath% ./node_modules/prisma/build/index.js migrate dev",
-    "prisma:studio": "%npm_node_execpath% ./node_modules/prisma/build/index.js studio",
-    "seed": "%npm_node_execpath% ./node_modules/tsx/dist/cli.mjs prisma/seed.ts"
+    "dev": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev --webpack",
+    "dev:lowmem": "node --max-old-space-size=3072 ./node_modules/next/dist/bin/next dev --webpack",
+    "dev:turbo": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev --turbo",
+    "build": "node --max-old-space-size=6144 ./node_modules/next/dist/bin/next build",
+    "start": "node ./node_modules/next/dist/bin/next start",
+    "lint": "node ./node_modules/eslint/bin/eslint.js . --max-warnings=0",
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
+    "prisma:generate": "node ./node_modules/prisma/build/index.js generate",
+    "prisma:migrate": "node ./node_modules/prisma/build/index.js migrate dev",
+    "prisma:studio": "node ./node_modules/prisma/build/index.js studio",
+    "seed": "node ./node_modules/tsx/dist/cli.mjs prisma/seed.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
