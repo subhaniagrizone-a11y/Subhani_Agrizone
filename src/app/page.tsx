@@ -10,7 +10,10 @@ import { FAQSection } from "@/components/home/faq-section";
 import { CropDiseaseSection } from "@/components/home/crop-disease-section";
 import { GallerySection } from "@/components/home/gallery-section";
 import { faqs } from "@/lib/data";
-import { getHomepageSectionVisibility } from "@/lib/homepage-sections";
+import {
+  getHomepageManagedContent,
+  getHomepageSectionVisibility,
+} from "@/lib/homepage-sections";
 import { faqJsonLd } from "@/lib/seo";
 
 export const revalidate = 120;
@@ -38,6 +41,7 @@ function SectionIntro({
 
 export default async function HomePage() {
   const sections = await getHomepageSectionVisibility();
+  const managedContent = await getHomepageManagedContent();
 
   return (
     <>
@@ -63,7 +67,9 @@ export default async function HomePage() {
       ) : null}
       {sections.home_gallery ? <GallerySection /> : null}
       {sections.home_diseases ? <CropDiseaseSection /> : null}
-      {sections.home_testimonials ? <TestimonialsSection /> : null}
+      {sections.home_testimonials ? (
+        <TestimonialsSection items={managedContent.testimonials} />
+      ) : null}
       {sections.home_blog ? <ContentSections /> : null}
       {sections.home_faq ? <FAQSection /> : null}
       <Script

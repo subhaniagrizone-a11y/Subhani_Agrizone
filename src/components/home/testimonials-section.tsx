@@ -5,7 +5,7 @@ import { Star } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getHomepageManagedContent } from "@/lib/homepage-sections";
+import type { HomepageTestimonialItem } from "@/lib/homepage-sections";
 
 interface Testimonial {
   id: string;
@@ -55,11 +55,12 @@ const testimonials: Testimonial[] = [
   },
 ];
 
-export async function TestimonialsSection() {
-  const managed = await getHomepageManagedContent();
-  const items = managed.testimonials.length
-    ? managed.testimonials
-    : testimonials;
+export function TestimonialsSection({
+  items = testimonials,
+}: {
+  items?: HomepageTestimonialItem[];
+}) {
+  const resolvedItems = items.length ? items : testimonials;
 
   return (
     <section className="py-20 md:py-32 relative overflow-hidden">
@@ -76,7 +77,7 @@ export async function TestimonialsSection() {
         >
           <Badge className="inline-block">✨ Success Stories</Badge>
           <h2 className="text-3xl md:text-5xl font-bold">
-            Trusted by {items.length}K+ Farmers & Dealers
+            Trusted by {resolvedItems.length}K+ Farmers & Dealers
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
             See what agriculture professionals are saying about us
@@ -84,7 +85,7 @@ export async function TestimonialsSection() {
         </motion.div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {items.map((testimonial, idx) => (
+          {resolvedItems.map((testimonial, idx) => (
             <motion.div
               key={testimonial.id}
               initial={{ opacity: 0, y: 20 }}
