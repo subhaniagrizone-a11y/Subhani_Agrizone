@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import {
   adminActivityFeed,
   adminDashboardStats,
-  adminHealthChecks,
   adminOverviewLinks,
   adminTrafficSeries,
 } from "@/lib/admin-config";
@@ -35,6 +34,8 @@ export default async function AdminDashboardPage() {
   const now = new Date();
   const start = new Date(now);
   start.setDate(now.getDate() - 6);
+  const previousStart = new Date(start);
+  previousStart.setDate(start.getDate() - 7);
 
   const [
     ordersCount,
@@ -42,6 +43,10 @@ export default async function AdminDashboardPage() {
     customersCount,
     inquiriesCount,
     recentInquiries,
+    pendingOrdersCount,
+    openInquiriesCount,
+    lowStockProductsCount,
+    previousTrafficSeed,
   ] = await Promise.all([
     prisma.order.count().catch(() => 0),
     prisma.product.count().catch(() => 0),
@@ -52,6 +57,31 @@ export default async function AdminDashboardPage() {
         orderBy: { createdAt: "desc" },
         take: 6,
         select: { name: true, subject: true, type: true, createdAt: true },
+      })
+      .catch(() => []),
+    prisma.order
+      .count({ where: { status: { in: ["PENDING", "PROCESSING"] } } })
+      .catch(() => 0),
+    prisma.inquiry
+      .count({ where: { status: { in: ["NEW", "OPEN"] } } })
+      .catch(() => 0),
+    prisma.product
+      .count({
+        where: {
+          status: "ACTIVE",
+          stock: { lte: 10 },
+        },
+      })
+      .catch(() => 0),
+    prisma.order
+      .findMany({
+        where: {
+          createdAt: {
+            gte: previousStart,
+            lt: start,
+          },
+        },
+        select: { createdAt: true },
       })
       .catch(() => []),
   ]);
@@ -79,6 +109,52 @@ export default async function AdminDashboardPage() {
   const liveTrafficSeries = dailyBuckets.map((item) =>
     Math.max(12, Math.round((item.count / maxTraffic) * 100)),
   );
+  const currentTrafficTotal = trafficSeed.length;
+  const previousTrafficTotal = previousTrafficSeed.length;
+  const trafficDelta =
+    previousTrafficTotal > 0
+      ? Math.round(
+          ((currentTrafficTotal - previousTrafficTotal) /
+            previousTrafficTotal) *
+            100,
+        )
+      : currentTrafficTotal > 0
+        ? 100
+        : 0;
+
+  const trafficHealthLabel =
+    currentTrafficTotal === 0
+      ? "No traffic"
+      : trafficDelta > 10
+        ? `Growing +${trafficDelta}%`
+        : trafficDelta < -10
+          ? `Down ${trafficDelta}%`
+          : "Stable";
+
+  const lastActivityAt = recentInquiries[0]?.createdAt
+    ? new Date(recentInquiries[0].createdAt)
+    : null;
+  const minutesSinceLastActivity = lastActivityAt
+    ? Math.floor((now.getTime() - lastActivityAt.getTime()) / (1000 * 60))
+    : null;
+  const recentActivityLabel = !lastActivityAt
+    ? "No activity"
+    : minutesSinceLastActivity !== null && minutesSinceLastActivity <= 60
+      ? "Live"
+      : minutesSinceLastActivity !== null && minutesSinceLastActivity <= 1440
+        ? "Tracked"
+        : "Stale";
+
+  const websiteRiskCount =
+    (pendingOrdersCount > 25 ? 1 : 0) +
+    (openInquiriesCount > 25 ? 1 : 0) +
+    (lowStockProductsCount > 10 ? 1 : 0);
+  const websiteHealthLabel =
+    websiteRiskCount === 0
+      ? "Stable"
+      : websiteRiskCount === 1
+        ? "Needs review"
+        : "Attention";
 
   const dashboardStats = adminDashboardStats.map((item) => {
     if (item.label.toLowerCase().includes("order")) {
@@ -109,7 +185,31 @@ export default async function AdminDashboardPage() {
     { label: "Products", value: String(productsCount) },
     { label: "Customers", value: String(customersCount) },
     { label: "Inquiries", value: String(inquiriesCount) },
-    ...adminHealthChecks,
+    {
+      label: "Pending orders",
+      value: String(pendingOrdersCount),
+      tone: pendingOrdersCount > 25 ? "warn" : "ok",
+    },
+    {
+      label: "Open inquiries",
+      value: String(openInquiriesCount),
+      tone: openInquiriesCount > 25 ? "warn" : "ok",
+    },
+    {
+      label: "Low stock products",
+      value: String(lowStockProductsCount),
+      tone: lowStockProductsCount > 10 ? "warn" : "ok",
+    },
+    {
+      label: "Latest activity",
+      value: lastActivityAt
+        ? lastActivityAt.toLocaleTimeString("en-PK", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "No activity",
+      tone: !lastActivityAt ? "warn" : "ok",
+    },
   ];
 
   const topProducts: {
@@ -136,6 +236,26 @@ export default async function AdminDashboardPage() {
       description: "Track pending shipments",
       href: "/admin/orders",
       icon: Truck,
+    },
+  ];
+  const statusCards = [
+    {
+      label: "Traffic graph",
+      value: trafficHealthLabel,
+      icon: LineChart,
+      href: "/admin/insights/traffic",
+    },
+    {
+      label: "Recent activity",
+      value: recentActivityLabel,
+      icon: Activity,
+      href: "/admin/insights/activity",
+    },
+    {
+      label: "Website status",
+      value: websiteHealthLabel,
+      icon: Gauge,
+      href: "/admin/insights/website-status",
     },
   ];
 
@@ -181,13 +301,10 @@ export default async function AdminDashboardPage() {
         </div>
 
         <div className="mt-6 grid gap-3 xl:grid-cols-3">
-          {[
-            { label: "Traffic graph", value: "Live", icon: LineChart },
-            { label: "Recent activity", value: "Tracked", icon: Activity },
-            { label: "Website status", value: "Stable", icon: Gauge },
-          ].map((item) => (
-            <div
+          {statusCards.map((item) => (
+            <Link
               key={item.label}
+              href={item.href}
               className="rounded-2xl border border-border/70 bg-muted/40 p-4"
             >
               <div className="flex items-center justify-between">
@@ -195,7 +312,7 @@ export default async function AdminDashboardPage() {
                 <Badge variant="secondary">{item.value}</Badge>
               </div>
               <p className="mt-4 font-semibold">{item.label}</p>
-            </div>
+            </Link>
           ))}
         </div>
       </section>
@@ -244,7 +361,9 @@ export default async function AdminDashboardPage() {
                   <BellRing className="h-4 w-4 text-primary" />
                   {item.label}
                 </span>
-                <Badge>{item.value}</Badge>
+                <Badge variant={item.tone === "warn" ? "gold" : "secondary"}>
+                  {item.value}
+                </Badge>
               </div>
             ))}
           </div>

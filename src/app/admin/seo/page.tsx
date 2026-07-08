@@ -1,124 +1,178 @@
-import type { Metadata } from "next";
-import { FileJson, Globe2, Save, SearchCheck, Share2 } from "lucide-react";
+"use client";
 
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
+import { Save, SearchCheck } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { blogPosts, categories, products } from "@/lib/data";
 
-export const metadata: Metadata = {
-  title: "SEO Panel"
+type SeoForm = {
+  entityType: string;
+  entityId: string;
+  title: string;
+  description: string;
+  keywords: string;
+  canonicalUrl: string;
+  openGraphImage: string;
+  noIndex: boolean;
 };
 
-const schemaItems = [
-  "Organization schema",
-  "Product schema",
-  "FAQ schema",
-  "Blog schema",
-  "Breadcrumb schema",
-  "Open Graph",
-  "Twitter Cards",
-  "Canonical URLs",
-  "Sitemap",
-  "Robots"
-];
+const initialForm: SeoForm = {
+  entityType: "page",
+  entityId: "homepage",
+  title: "",
+  description: "",
+  keywords: "",
+  canonicalUrl: "",
+  openGraphImage: "",
+  noIndex: false,
+};
 
 export default function AdminSeoPage() {
+  const [form, setForm] = useState<SeoForm>(initialForm);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      const response = await fetch(
+        "/api/admin/seo-settings?entityType=page&entityId=homepage",
+        {
+          cache: "no-store",
+        },
+      );
+      const data = await response.json();
+      const setting = data.setting;
+      setForm({
+        entityType: setting.entityType || "page",
+        entityId: setting.entityId || "homepage",
+        title: setting.title || "",
+        description: setting.description || "",
+        keywords: Array.isArray(setting.keywords)
+          ? setting.keywords.join(", ")
+          : "",
+        canonicalUrl: setting.canonicalUrl || "",
+        openGraphImage: setting.openGraphImage || "",
+        noIndex: Boolean(setting.noIndex),
+      });
+    }
+
+    void load();
+  }, []);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setMessage("");
+
+    const response = await fetch("/api/admin/seo-settings", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        entityType: form.entityType,
+        entityId: form.entityId,
+        title: form.title,
+        description: form.description,
+        keywords: form.keywords
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        canonicalUrl: form.canonicalUrl,
+        openGraphImage: form.openGraphImage,
+        noIndex: form.noIndex,
+        structuredData: {},
+      }),
+    });
+
+    const result = await response.json();
+    setLoading(false);
+
+    if (!response.ok) {
+      setMessage(result.error ?? "Unable to save SEO settings.");
+      return;
+    }
+
+    setMessage("SEO settings saved.");
+  }
+
   return (
-    <>
-      <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="eyebrow">SEO</p>
-            <h1 className="mt-3 text-3xl font-bold tracking-normal sm:text-4xl">
-              Search optimization panel
-            </h1>
-          </div>
-          <Button variant="luxury">
-            <Save className="h-4 w-4" />
-            Save SEO
-          </Button>
+    <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-normal">SEO Panel</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage homepage metadata with persistent storage.
+          </p>
         </div>
-      </section>
+        <SearchCheck className="h-5 w-5 text-primary" />
+      </div>
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
-        <form className="rounded-lg border border-border bg-card p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold tracking-normal">Page metadata</h2>
-            <SearchCheck className="h-5 w-5 text-primary" />
-          </div>
-          <div className="mt-5 grid gap-4">
-            <label className="grid gap-2 text-sm font-semibold">
-              Page
-              <select className="h-11 rounded-md border border-input bg-background px-3 text-sm">
-                <option>Homepage</option>
-                {categories.map((category) => (
-                  <option key={category.slug}>Category - {category.name}</option>
-                ))}
-                {products.map((product) => (
-                  <option key={product.slug}>Product - {product.title}</option>
-                ))}
-                {blogPosts.map((post) => (
-                  <option key={post.slug}>Blog - {post.title}</option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-2 text-sm font-semibold">
-              Meta title
-              <Input placeholder="Premium Agriculture Ecommerce" />
-            </label>
-            <label className="grid gap-2 text-sm font-semibold">
-              Meta description
-              <textarea
-                rows={4}
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                placeholder="Search description"
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-semibold">
-              Canonical URL
-              <Input placeholder="https://example.com/page" />
-            </label>
-            <label className="grid gap-2 text-sm font-semibold">
-              Open Graph image
-              <Input placeholder="https://..." />
-            </label>
-          </div>
-        </form>
+      <form className="mt-6 grid gap-4" onSubmit={submit}>
+        <Input
+          placeholder="Meta title"
+          value={form.title}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, title: event.target.value }))
+          }
+        />
+        <textarea
+          className="min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          placeholder="Meta description"
+          value={form.description}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              description: event.target.value,
+            }))
+          }
+        />
+        <Input
+          placeholder="Keywords (comma separated)"
+          value={form.keywords}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, keywords: event.target.value }))
+          }
+        />
+        <Input
+          placeholder="Canonical URL"
+          value={form.canonicalUrl}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, canonicalUrl: event.target.value }))
+          }
+        />
+        <Input
+          placeholder="Open Graph image URL"
+          value={form.openGraphImage}
+          onChange={(event) =>
+            setForm((prev) => ({
+              ...prev,
+              openGraphImage: event.target.value,
+            }))
+          }
+        />
+        <label className="inline-flex items-center gap-2 text-sm font-semibold">
+          <input
+            type="checkbox"
+            checked={form.noIndex}
+            onChange={(event) =>
+              setForm((prev) => ({
+                ...prev,
+                noIndex: event.target.checked,
+              }))
+            }
+          />
+          No Index
+        </label>
 
-        <aside className="space-y-4">
-          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-bold tracking-normal">Schema coverage</h2>
-              <FileJson className="h-5 w-5 text-primary" />
-            </div>
-            <div className="mt-5 grid gap-2">
-              {schemaItems.map((item) => (
-                <div
-                  key={item}
-                  className="flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm font-semibold"
-                >
-                  {item}
-                  <Badge>Ready</Badge>
-                </div>
-              ))}
-            </div>
-          </div>
+        {message ? (
+          <p className="rounded-md bg-muted px-3 py-2 text-sm">{message}</p>
+        ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-            <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-              <Globe2 className="h-5 w-5 text-primary" />
-              <p className="mt-4 text-2xl font-bold">100%</p>
-              <p className="text-sm text-muted-foreground">Indexable route coverage</p>
-            </div>
-            <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-              <Share2 className="h-5 w-5 text-primary" />
-              <p className="mt-4 text-2xl font-bold">All pages</p>
-              <p className="text-sm text-muted-foreground">Social preview fields</p>
-            </div>
-          </div>
-        </aside>
-      </section>
-    </>
+        <Button type="submit" variant="luxury" disabled={loading}>
+          <Save className="h-4 w-4" />
+          {loading ? "Saving..." : "Save SEO"}
+        </Button>
+      </form>
+    </section>
   );
 }

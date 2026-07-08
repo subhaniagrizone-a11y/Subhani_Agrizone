@@ -155,11 +155,16 @@ const catalogModules = [
   ),
   createModule(
     "diseases",
-    "Diseases",
+    "Disease Intelligence",
     TestTubeDiagonal,
-    "Maintain disease/problem catalogs to connect product recommendations with field issues.",
+    "Maintain disease and problem catalogs to connect product recommendations with field issues.",
     "Problem mapping",
-    ["Disease library", "Product linkage", "Seasonal relevance"],
+    [
+      "Disease library",
+      "Product linkage",
+      "Seasonal relevance",
+      "Operational workflows",
+    ],
     [
       { label: "Indexed", value: "27" },
       { label: "Priority", value: "6" },

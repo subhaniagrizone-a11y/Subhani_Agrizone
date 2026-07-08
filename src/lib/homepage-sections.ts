@@ -113,40 +113,79 @@ export async function getHomepageManagedContent(): Promise<HomepageManagedConten
   };
 
   try {
-    const rows = await prisma.homepageSection.findMany({
-      where: {
-        key: {
-          in: [
-            "home_blog",
-            "home_gallery",
-            "home_testimonials",
-            "home_diseases",
-          ],
+    const [blogRows, testimonialRows, rows] = await Promise.all([
+      prisma.blogPost.findMany({
+        orderBy: [{ published: "desc" }, { updatedAt: "desc" }],
+        take: 12,
+      }),
+      prisma.testimonial.findMany({
+        where: { active: true },
+        orderBy: { updatedAt: "desc" },
+        take: 12,
+      }),
+      prisma.homepageSection.findMany({
+        where: {
+          key: {
+            in: [
+              "home_blog",
+              "home_gallery",
+              "home_testimonials",
+              "home_diseases",
+            ],
+          },
         },
-      },
-      select: {
-        key: true,
-        content: true,
-      },
-    });
+        select: {
+          key: true,
+          content: true,
+        },
+      }),
+    ]);
+
+    const dbBlogs = blogRows.map((item) => ({
+      id: item.id,
+      title: item.title,
+      slug: item.slug,
+      excerpt: item.excerpt,
+      image:
+        item.coverImage ||
+        "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80",
+      category: "Blog",
+      readTime: "5 min",
+      date: item.publishedAt
+        ? new Date(item.publishedAt).toLocaleDateString("en-PK")
+        : new Date(item.updatedAt).toLocaleDateString("en-PK"),
+    }));
+
+    const dbTestimonials = testimonialRows.map((item) => ({
+      id: item.id,
+      name: item.name,
+      role: item.role ?? "Customer",
+      quote: item.quote,
+      rating: item.rating,
+      image:
+        item.imageUrl ||
+        "https://api.dicebear.com/7.x/avataaars/svg?seed=subhaniagrizone",
+    }));
 
     const byKey = new Map(rows.map((row) => [row.key, readItems(row.content)]));
 
-    const blogs = (byKey.get("home_blog") ?? [])
-      .map((item) => ({
-        id: asString(
-          item.id,
-          asString(item.slug, Math.random().toString(36).slice(2)),
-        ),
-        title: asString(item.title),
-        slug: asString(item.slug),
-        excerpt: asString(item.excerpt),
-        image: asString(item.image),
-        category: asString(item.category, "General"),
-        readTime: asString(item.readTime, "5 min"),
-        date: asString(item.date, new Date().toLocaleDateString("en-PK")),
-      }))
-      .filter((item) => item.title && item.slug && item.image);
+    const blogs = dbBlogs.length
+      ? dbBlogs
+      : (byKey.get("home_blog") ?? [])
+          .map((item) => ({
+            id: asString(
+              item.id,
+              asString(item.slug, Math.random().toString(36).slice(2)),
+            ),
+            title: asString(item.title),
+            slug: asString(item.slug),
+            excerpt: asString(item.excerpt),
+            image: asString(item.image),
+            category: asString(item.category, "General"),
+            readTime: asString(item.readTime, "5 min"),
+            date: asString(item.date, new Date().toLocaleDateString("en-PK")),
+          }))
+          .filter((item) => item.title && item.slug && item.image);
 
     const gallery = (byKey.get("home_gallery") ?? [])
       .map((item) => ({
@@ -156,16 +195,18 @@ export async function getHomepageManagedContent(): Promise<HomepageManagedConten
       }))
       .filter((item) => item.title && item.image);
 
-    const testimonials = (byKey.get("home_testimonials") ?? [])
-      .map((item) => ({
-        id: asString(item.id, Math.random().toString(36).slice(2)),
-        name: asString(item.name),
-        role: asString(item.role),
-        quote: asString(item.quote),
-        rating: asNumber(item.rating, 5),
-        image: asString(item.image),
-      }))
-      .filter((item) => item.name && item.quote);
+    const testimonials = dbTestimonials.length
+      ? dbTestimonials
+      : (byKey.get("home_testimonials") ?? [])
+          .map((item) => ({
+            id: asString(item.id, Math.random().toString(36).slice(2)),
+            name: asString(item.name),
+            role: asString(item.role),
+            quote: asString(item.quote),
+            rating: asNumber(item.rating, 5),
+            image: asString(item.image),
+          }))
+          .filter((item) => item.name && item.quote);
 
     const diseases = (byKey.get("home_diseases") ?? [])
       .map((item) => ({

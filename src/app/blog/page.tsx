@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { blogPosts } from "@/lib/data";
+import { getLiveBlogPosts } from "@/lib/blogs-server";
 import { absoluteUrl } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -11,11 +11,13 @@ export const metadata: Metadata = {
   description:
     "Agriculture buying guides, crop nutrition notes, field safety articles, and seasonal farming advice.",
   alternates: {
-    canonical: absoluteUrl("/blog")
-  }
+    canonical: absoluteUrl("/blog"),
+  },
 };
 
-export default function BlogPage() {
+export default async function BlogPage() {
+  const blogPosts = await getLiveBlogPosts();
+
   return (
     <section className="section-padding">
       <div className="container space-y-10">
@@ -38,11 +40,18 @@ export default function BlogPage() {
               className="overflow-hidden rounded-lg border border-border bg-card shadow-sm transition hover:-translate-y-1 hover:shadow-soft"
             >
               <div className="relative h-56">
-                <Image src={post.image} alt={post.title} fill className="object-cover" />
+                <Image
+                  src={post.image}
+                  alt={post.title}
+                  fill
+                  className="object-cover"
+                />
               </div>
               <div className="space-y-3 p-5">
                 <Badge variant="secondary">{post.category}</Badge>
-                <h2 className="text-xl font-bold tracking-normal">{post.title}</h2>
+                <h2 className="text-xl font-bold tracking-normal">
+                  {post.title}
+                </h2>
                 <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">
                   {post.excerpt}
                 </p>
