@@ -13,6 +13,8 @@ import { organizationJsonLd } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/utils";
 import "./globals.css";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
