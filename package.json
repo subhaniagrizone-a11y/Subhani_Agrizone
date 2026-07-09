@@ -4,7 +4,7 @@
   "private": true,
   "description": "Premium agriculture ecommerce and CMS platform for Subhni Agrizone.",
   "engines": {
-    "node": ">=20.11.1 <21",
+    "node": "24.x",
     "npm": ">=10 <11"
   },
   "packageManager": "npm@10.2.4",
