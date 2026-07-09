@@ -155,15 +155,19 @@ export async function POST(request: NextRequest) {
             "missing" in verificationEmailResult
               ? verificationEmailResult.missing
               : undefined;
+          const reason =
+            "reason" in verificationEmailResult
+              ? verificationEmailResult.reason
+              : undefined;
           return NextResponse.json(
             {
               ok: true,
               verificationRequired: true,
               existingAccount: true,
               emailDelivery: false,
-              error:
-                "Verification email could not be sent. SMTP is not configured.",
+              error: "Verification email could not be sent.",
               missing,
+              reason,
               verifyUrl:
                 process.env.NODE_ENV !== "production" ? verifyUrl : undefined,
               user: { id: existing.id, email, name: existing.name ?? name },
@@ -259,14 +263,18 @@ export async function POST(request: NextRequest) {
         "missing" in verificationEmailResult
           ? verificationEmailResult.missing
           : undefined;
+      const reason =
+        "reason" in verificationEmailResult
+          ? verificationEmailResult.reason
+          : undefined;
       return NextResponse.json(
         {
           ok: true,
           verificationRequired: true,
           emailDelivery: false,
-          error:
-            "Verification email could not be sent. SMTP is not configured.",
+          error: "Verification email could not be sent.",
           missing,
+          reason,
           verifyUrl:
             process.env.NODE_ENV !== "production" ? verifyUrl : undefined,
           user: { id: user.id, email: user.email, name: user.name },

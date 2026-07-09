@@ -40,25 +40,41 @@ export async function sendMail(payload: MailPayload) {
     };
   }
 
+  const port = Number(process.env.SMTP_PORT ?? 587);
+  const secure =
+    process.env.SMTP_SECURE !== undefined
+      ? process.env.SMTP_SECURE === "true"
+      : port === 465;
+
   const transporter = nodemailer.createTransport({
     host,
-    port: Number(process.env.SMTP_PORT ?? 587),
-    secure: false,
+    port,
+    secure,
     auth: {
       user,
       pass,
     },
   });
 
-  await transporter.sendMail({
-    from,
-    to: payload.to,
-    subject: payload.subject,
-    text: payload.text,
-    html: payload.html,
-  });
+  try {
+    await transporter.sendMail({
+      from,
+      to: payload.to,
+      subject: payload.subject,
+      text: payload.text,
+      html: payload.html,
+    });
 
-  return { ok: true };
+    return { ok: true };
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error);
+    console.error("SMTP send failed", details);
+    return {
+      ok: false,
+      reason: "send-failed",
+      details,
+    };
+  }
 }
 
 function wrapEmailTemplate(payload: TemplatedMailPayload) {
