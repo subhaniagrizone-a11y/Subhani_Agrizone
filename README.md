@@ -1,264 +1,96 @@
-# Subhni Agrizone - Premium Agriculture eCommerce Platform
+# Subhani Agrizone
 
-## 🌾 Overview
+Subhani Agrizone is a Next.js commerce and CMS platform for agricultural products, dealer workflows, and customer support. This project keeps the existing UI and functionality intact while preparing it for deployment to GitHub, Vercel, and MongoDB Atlas.
 
-A **world-class premium agriculture eCommerce platform** built with cutting-edge technologies to provide an unparalleled experience for farmers, dealers, and agriculture enthusiasts. Built to compete with platforms like Apple, Shopify, and Nike while maintaining deep focus on agriculture needs.
+## Tech stack
 
-### ✨ Key Features
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS
+- Prisma ORM
+- MongoDB Atlas / MongoDB
+- NextAuth v5
+- Vercel-ready serverless deployment
 
-- **Advanced Real-Time Search** - Instant suggestions as users type the first character
-- **Theme Customization** - Users can customize colors and appearance (5 preset schemes + custom colors)
-- **Premium UI/UX** - Luxury animations, micro-interactions, glassmorphism effects
-- **Multi-Tier Pricing** - Retail, Wholesale, Dealer, Farmer pricing
-- **Complete Product Management** - Images, videos, specifications, variants, stock, dosage, usage
-- **Modern Admin Dashboard** - Easy-to-use CMS for managing everything
-- **Enterprise-Grade SEO** - Dynamic meta tags, schema markup, JSON-LD, structured data
-- **Multiple Auth Methods** - Google OAuth, Email, Phone OTP login
-- **Performance Optimized** - Google Lighthouse 100 ready, fast loading
-- **Fully Responsive** - Perfect on desktop, tablet, mobile - no horizontal scroll
-- **Dark & Light Mode** - With theme customization
+## Local development
 
----
-
-## 🚀 Tech Stack
-
-### Frontend
-
-- **Next.js 16** - Latest React framework with App Router
-- **React 19** - Latest React version
-- **TypeScript** - Type-safe development
-- **Tailwind CSS** - Utility-first styling with premium design
-- **Shadcn UI** - Premium component library
-- **Framer Motion** - Smooth luxury animations
-- **Lucide Icons** - Beautiful icon set
-
-### Backend
-
-- **Node.js** - JavaScript runtime
-- **Next.js API Routes** - Serverless functions
-- **MongoDB** - NoSQL document database (Compass support included)
-- **Prisma ORM** - Type-safe database client with MongoDB driver
-
-### Authentication & Services
-
-- **NextAuth.js v5** - Full authentication system
-- **Google OAuth** - Google login integration
-- **Email/Password Auth** - Custom authentication
-- **Phone OTP** - Phone-based login (ready to implement)
-
----
-
-## 📋 Installation & Setup
-
-### Prerequisites
-
-- Node.js 18+
-- MongoDB 5+ (local or cloud instance)
-- MongoDB Compass (optional, for GUI database management)
-- pnpm or npm
-
-### Quick Start
+1. Install dependencies:
 
 ```bash
-# 1. Clone repository
-git clone <your-repo-url>
-cd subhni-agrizone
-
-# 2. Install dependencies
-pnpm install
-
-# 3. Setup environment
-cp .env.example .env.local
-# Edit .env.local - MongoDB is already configured for localhost:27017
-
-# 4. Ensure MongoDB is running
-# For local MongoDB: mongod --dbpath /path/to/data
-# Or use MongoDB Atlas cloud: mongodb+srv://username:password@cluster.mongodb.net/dbname
-
-# 5. Generate Prisma Client
-pnpm prisma:generate
-
-# 6. Run development server
-pnpm dev
+npm install
 ```
 
-Visit http://localhost:3000
+2. Copy the example file and set your local values:
 
-### Environment Variables
+```bash
+copy .env.example .env.local
+```
 
-Create `.env.local` (or update the existing one):
+3. Start the app:
+
+```bash
+npm run dev
+```
+
+4. Open http://localhost:3000
+
+## Required environment variables
+
+Create a local `.env.local` file with values that match your own environment. The required production variable is:
 
 ```env
-# MongoDB (Local - for MongoDB Compass)
-DATABASE_URL="mongodb://localhost:27017/subhni_agrizone"
-
-# Or MongoDB Atlas (Cloud):
-# DATABASE_URL="mongodb+srv://username:password@cluster.mongodb.net/subhni_agrizone?retryWrites=true&w=majority"
-
-# Authentication
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="generate-a-secure-secret-key"
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
-
-# Site Configuration
+MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.mongodb.net/subhani_agrizone?retryWrites=true&w=majority"
+AUTH_SECRET="replace-with-a-long-random-secret"
+NEXTAUTH_SECRET="replace-with-a-long-random-secret"
 NEXT_PUBLIC_SITE_URL="http://localhost:3000"
-NEXT_PUBLIC_SUPPORT_PHONE="+92 300 1234567"
-NEXT_PUBLIC_WHATSAPP_NUMBER="+92 300 1234567"
-
-# Optional: Payment & Services
-STRIPE_PUBLIC_KEY="your-stripe-key"
-STRIPE_SECRET_KEY="your-stripe-secret"
-PHONE_LOGIN_ENABLED="false"
+ADMIN_EMAIL="subhaniagrizone@gmail.com"
+ADMIN_PASSWORD="replace-with-a-strong-admin-password"
 ```
 
-### MongoDB Setup Guide
+Do not commit `.env` files or real secrets. Keep credentials in your local environment and Vercel environment variables.
 
-#### Local MongoDB with Compass:
+## MongoDB Atlas setup
 
-1. **Install MongoDB Community Edition**
+1. Create a MongoDB Atlas cluster.
+2. Add a database user with a strong password.
+3. Get the connection string for the cluster.
+4. Set `MONGODB_URI` in local `.env.local` and in Vercel project settings.
+5. Use the database name `subhani_agrizone` in the connection string.
 
-   ```bash
-   # Windows: Use MongoDB installer or Chocolatey
-   choco install mongodb-community
-   ```
+> Rotate the MongoDB database password before production deployment if it was previously exposed in code or local files.
 
-2. **Start MongoDB Service**
+## Vercel deployment
 
-   ```bash
-   # Windows
-   net start MongoDB
+1. Push the project to GitHub.
+2. Import the repository in Vercel.
+3. Use the framework preset: Next.js.
+4. Add these environment variables in Vercel:
+   - `MONGODB_URI`
+   - `AUTH_SECRET`
+   - `NEXTAUTH_SECRET`
+   - `ADMIN_EMAIL`
+   - `ADMIN_PASSWORD`
+   - `NEXT_PUBLIC_SITE_URL`
+5. Trigger a production deployment.
 
-   # Or run mongod directly
-   mongod --dbpath "C:\data\db"
-   ```
+## GitHub deployment workflow
 
-3. **Install MongoDB Compass** (GUI tool)
-   - Download from: https://www.mongodb.com/products/compass
-   - Connect to: `mongodb://localhost:27017`
-
-4. **Verify Connection**
-   ```bash
-   mongosh  # MongoDB Shell
-   show dbs # List databases
-   ```
-
-#### Using MongoDB Atlas (Cloud):
-
-1. Create account at https://www.mongodb.com/cloud/atlas
-2. Create a free cluster
-3. Get connection string: `mongodb+srv://username:password@cluster.mongodb.net/...`
-4. Update `DATABASE_URL` in `.env.local`
-
----
-
-## 📁 Project Structure
-
-```
-subhni-agrizone/
-├── src/
-│   ├── app/                          # Next.js App Router
-│   │   ├── (auth)/
-│   │   │   └── login/               # Login page with multiple methods
-│   │   ├── admin/
-│   │   │   ├── products/            # Product management
-│   │   │   ├── cms/                 # Homepage CMS
-│   │   │   ├── categories/          # Category management
-│   │   │   └── dashboard/           # Admin dashboard
-│   │   ├── api/
-│   │   │   ├── search/              # Advanced search API ⭐ NEW
-│   │   │   ├── products/            # Product API
-│   │   │   ├── categories/          # Category API
-│   │   │   └── auth/[...nextauth]/ # NextAuth routes
-│   │   ├── blog/                    # Blog pages
-│   │   ├── categories/              # Category pages
-│   │   ├── products/                # Product pages
-│   │   ├── dashboard/               # User dashboard
-│   │   ├── contact/                 # Contact page
-│   │   ├── layout.tsx               # Root layout with theme
-│   │   ├── page.tsx                 # Homepage
-│   │   ├── globals.css              # Global styles
-│   │   └── robots.ts                # SEO robots
-│   ├── components/
-│   │   ├── admin/
-│   │   │   ├── admin-shell.tsx
-│   │   │   └── cms-editor-panel.tsx
-│   │   ├── home/                    # Homepage components
-│   │   │   ├── hero-slider.tsx
-│   │   │   ├── category-grid.tsx
-│   │   │   ├── product-showcase.tsx
-│   │   │   ├── flash-sale.tsx
-│   │   │   ├── testimonials.tsx     # NEW
-│   │   │   └── faq-section.tsx      # NEW
-│   │   ├── product/
-│   │   │   ├── product-card.tsx
-│   │   │   ├── product-detail.tsx
-│   │   │   └── product-gallery.tsx
-│   │   ├── site/
-│   │   │   ├── site-header.tsx      # Updated with advanced search
-│   │   │   ├── advanced-search.tsx  # ⭐ NEW - Real-time search
-│   │   │   ├── theme-customizer.tsx # ⭐ NEW - Color customization
-│   │   │   ├── theme-toggle.tsx     # Dark/Light mode
-│   │   │   ├── site-footer.tsx
-│   │   │   └── login-form.tsx
-│   │   └── ui/                      # Base UI components
-│   │       ├── badge.tsx
-│   │       ├── button.tsx
-│   │       ├── card.tsx
-│   │       ├── input.tsx
-│   │       ├── motion.tsx
-│   │       └── skeleton.tsx
-│   ├── lib/
-│   │   ├── auth.ts                  # NextAuth configuration
-│   │   ├── data.ts                  # Mock data & config
-│   │   ├── db.ts                    # Prisma client
-│   │   ├── seo.ts                   # SEO utilities
-│   │   ├── theme-store.ts           # ⭐ NEW - Theme state
-│   │   ├── utils.ts                 # Helper functions
-│   │   ├── validators.ts            # Zod validators
-│   │   └── rate-limit.ts            # Rate limiting
-│   └── types/
-│       └── index.ts                 # TypeScript types
-├── prisma/
-│   ├── schema.prisma                # Database schema (updated with UserPreferences)
-│   └── seed.ts                      # Database seeding
-├── public/                          # Static assets
-├── .env.example                     # Example environment variables
-├── package.json                     # Dependencies
-├── tsconfig.json                    # TypeScript config
-├── tailwind.config.ts               # Tailwind CSS config
-├── next.config.ts                   # Next.js config
-└── README.md                        # This file
+```bash
+git status
+git add .
+git commit -m "Prepare project for production deployment"
+git push origin main
 ```
 
----
+## Notes
 
-## 🎨 New Features & Improvements
+- Do not commit `.env`, `.env.local`, or generated build artifacts.
+- Use secure cookies and server-only env variables in production.
+- Prefer `MONGODB_URI` and `AUTH_SECRET` from secure environment settings instead of hardcoded values.
+- The current project already includes Prisma-based MongoDB models and a Next.js app router architecture, so the deployment work preserves the existing app rather than replacing it.
 
-### ⭐ Advanced Real-Time Search
-
-**File:** `src/components/site/advanced-search.tsx`
-
-Features:
-
-- ✅ Suggestions from first character typed
-- ✅ Grouped results (Products, Categories, Brands)
-- ✅ Product images and prices
-- ✅ Keyboard navigation (Arrow keys, Enter, Esc)
-- ✅ Click outside to close
-- ✅ Debounced API calls for performance
-- ✅ Loading state with spinner
-- ✅ No results fallback message
-
-Usage:
-
-```tsx
-import { AdvancedSearch } from "@/components/site/advanced-search";
-
-export function Header() {
-  return <AdvancedSearch />;
-}
-```
+````
 
 ### ⭐ Theme Customization System
 
@@ -289,7 +121,7 @@ import { ThemeCustomizer } from "@/components/site/theme-customizer";
 export function SettingsPage() {
   return <ThemeCustomizer />;
 }
-```
+````
 
 ### Dark & Light Mode
 

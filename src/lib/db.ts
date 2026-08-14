@@ -5,7 +5,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function buildDatasourceUrl() {
-  const raw = process.env.DATABASE_URL;
+  const raw = process.env.MONGODB_URI ?? process.env.DATABASE_URL;
   if (!raw) return raw;
 
   try {
