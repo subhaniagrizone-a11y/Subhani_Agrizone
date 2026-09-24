@@ -14,28 +14,33 @@ function toStringValue(value: unknown, fallback = "") {
 }
 
 function getImageList(raw: AnyRecord) {
+  const fallbackImage =
+    "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80";
+
   const images = raw.images;
   if (!Array.isArray(images) || images.length === 0) {
-    return [
-      "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80",
-    ];
+    return [fallbackImage];
   }
 
   const parsed = images
     .map((item) => {
-      if (typeof item === "string") return item;
+      if (typeof item === "string") return item.trim();
       if (item && typeof item === "object" && "url" in item) {
-        return toStringValue((item as AnyRecord).url, "");
+        return toStringValue((item as AnyRecord).url, "").trim();
       }
       return "";
     })
-    .filter(Boolean);
+    .filter((item): item is string => Boolean(item))
+    .filter((item) => {
+      try {
+        new URL(item);
+        return true;
+      } catch {
+        return false;
+      }
+    });
 
-  return parsed.length
-    ? parsed
-    : [
-        "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80",
-      ];
+  return parsed.length ? parsed : [fallbackImage];
 }
 
 function getVariants(raw: AnyRecord) {

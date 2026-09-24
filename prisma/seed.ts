@@ -49,8 +49,38 @@ async function main() {
     },
   });
 
-  const adminEmail = "admin@subhniagrizone.com";
-  const adminPassword = "Admin@12345";
+  const adminEmail = process.env.ADMIN_EMAIL ?? "subhaniagrizone@gmail.com";
+  const oldAdminEmail = "admin@subhniagrizone.com";
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminPassword) {
+    throw new Error("ADMIN_PASSWORD must be set before seeding an admin.");
+  }
+
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail },
+    select: { id: true },
+  });
+
+  if (!existingAdmin) {
+    const legacyAdmin = await prisma.user.findUnique({
+      where: { email: oldAdminEmail },
+      select: { id: true },
+    });
+
+    if (legacyAdmin) {
+      await prisma.user.update({
+        where: { id: legacyAdmin.id },
+        data: {
+          email: adminEmail,
+          role: "ADMIN",
+          passwordHash: await hash(adminPassword, 10),
+          name: "Admin User",
+          emailVerified: new Date(),
+        },
+      });
+    }
+  }
 
   await prisma.user.upsert({
     where: { email: adminEmail },
@@ -58,12 +88,14 @@ async function main() {
       role: "ADMIN",
       passwordHash: await hash(adminPassword, 10),
       name: "Admin User",
+      emailVerified: new Date(),
     },
     create: {
       email: adminEmail,
       name: "Admin User",
       role: "ADMIN",
       passwordHash: await hash(adminPassword, 10),
+      emailVerified: new Date(),
     },
   });
 }
@@ -76,3 +108,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+44;

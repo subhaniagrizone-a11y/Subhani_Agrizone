@@ -66,6 +66,63 @@ export async function GET(request: NextRequest) {
 
     const point = await resolvePoint(city, latitude, longitude);
 
+    const weatherApiKey = process.env.WEATHER_API_KEY;
+    if (weatherApiKey && !latitude && !longitude) {
+      try {
+        const weatherApiUrl = new URL(
+          "https://api.weatherapi.com/v1/forecast.json",
+        );
+        weatherApiUrl.searchParams.set("key", weatherApiKey);
+        weatherApiUrl.searchParams.set("q", point.city);
+        weatherApiUrl.searchParams.set("days", "7");
+        weatherApiUrl.searchParams.set("aqi", "no");
+        weatherApiUrl.searchParams.set("alerts", "no");
+
+        const weatherApiResponse = await fetchWithTimeout(
+          weatherApiUrl.toString(),
+        );
+        if (!weatherApiResponse.ok) throw new Error("WeatherAPI unavailable");
+
+        const weatherApiData = await weatherApiResponse.json();
+        const current = weatherApiData.current ?? {};
+        const forecastDays = weatherApiData.forecast?.forecastday ?? [];
+        const location = weatherApiData.location ?? {};
+
+        return NextResponse.json({
+          location: {
+            latitude: Number(location.lat ?? point.latitude),
+            longitude: Number(location.lon ?? point.longitude),
+            city: String(location.name ?? point.city),
+            country: String(location.country ?? point.country ?? ""),
+          },
+          current: {
+            temperature: Number(current.temp_c ?? 0),
+            humidity: Number(current.humidity ?? 0),
+            weatherCode: Number(current.condition?.code ?? 0),
+            windSpeed: Number(current.wind_kph ?? 0),
+            pressure: Number(current.pressure_mb ?? 0),
+            precipitation: Number(current.precip_mm ?? 0),
+            updatedAt: String(location.localtime ?? ""),
+          },
+          hourly: [],
+          daily: forecastDays.map((day: Record<string, any>) => ({
+            date: String(day.date ?? ""),
+            maxTemp: Number(day.day?.maxtemp_c ?? 0),
+            minTemp: Number(day.day?.mintemp_c ?? 0),
+            rainChance: Number(day.day?.daily_chance_of_rain ?? 0),
+            uvIndex: Number(day.day?.uv ?? 0),
+            sunrise: String(day.astro?.sunrise ?? ""),
+            sunset: String(day.astro?.sunset ?? ""),
+            weatherCode: Number(day.day?.condition?.code ?? 0),
+            condition: String(day.day?.condition?.text ?? ""),
+          })),
+          alerts: [],
+        });
+      } catch {
+        // Fall back to Open-Meteo if the optional WeatherAPI key is invalid.
+      }
+    }
+
     const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
     weatherUrl.searchParams.set("latitude", String(point.latitude));
     weatherUrl.searchParams.set("longitude", String(point.longitude));

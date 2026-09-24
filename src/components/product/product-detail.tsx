@@ -118,6 +118,9 @@ function extractFaqs(product: Product) {
     );
 }
 
+const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80";
+
 export function ProductDetail({
   product,
   relatedProducts,
@@ -148,12 +151,24 @@ export function ProductDetail({
       return value === null || typeof value !== "object";
     },
   );
-  const [image, setImage] = useState(product.images[0]);
+  const validImages = (product.images ?? []).filter((item) => {
+    if (!item) return false;
+    try {
+      new URL(item);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  const safeImages = validImages.length ? validImages : [FALLBACK_IMAGE];
+  const [image, setImage] = useState(safeImages[0]);
   const [liked, setLiked] = useState(false);
   const [compared, setCompared] = useState(false);
   const [cartAdded, setCartAdded] = useState(false);
 
   useEffect(() => {
+    setImage(safeImages[0]);
+
     const sync = () => {
       setLiked(getWishlistIds().includes(product.id));
       setCompared(getCompareIds().includes(product.id));
@@ -179,7 +194,7 @@ export function ProductDetail({
           <div className="space-y-4">
             <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-border bg-muted shadow-soft">
               <Image
-                src={image}
+                src={image || FALLBACK_IMAGE}
                 alt={product.title}
                 fill
                 priority
@@ -189,7 +204,7 @@ export function ProductDetail({
               <Badge className="absolute left-4 top-4">{product.badge}</Badge>
             </div>
             <div className="grid grid-cols-4 gap-3">
-              {product.images.map((item) => (
+              {safeImages.map((item) => (
                 <button
                   key={item}
                   type="button"

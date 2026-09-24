@@ -13,13 +13,19 @@
     "dev:lowmem": "node --max-old-space-size=3072 ./node_modules/next/dist/bin/next dev --webpack",
     "dev:turbo": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev --turbo",
     "build": "node --max-old-space-size=6144 ./node_modules/next/dist/bin/next build",
-    "start": "node ./node_modules/next/dist/bin/next start",
+    "start": "node server.js",
     "lint": "node ./node_modules/eslint/bin/eslint.js . --max-warnings=0",
     "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
     "prisma:generate": "node ./node_modules/prisma/build/index.js generate",
     "prisma:migrate": "node ./node_modules/prisma/build/index.js migrate dev",
     "prisma:studio": "node ./node_modules/prisma/build/index.js studio",
-    "seed": "node ./node_modules/tsx/dist/cli.mjs prisma/seed.ts"
+    "seed": "node ./node_modules/tsx/dist/cli.mjs prisma/seed.ts",
+    "db:dashboard": "node scripts/db-dashboard.js",
+    "db:test": "node scripts/test-connection.js",
+    "db:clear": "node scripts/clear-all-data.js",
+    "db:studio": "node ./node_modules/prisma/build/index.js studio",
+    "db:push": "node ./node_modules/prisma/build/index.js db push",
+    "db:reset": "node ./node_modules/prisma/build/index.js migrate reset --force"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

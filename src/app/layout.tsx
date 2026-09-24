@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteQuickActionsFab } from "@/components/site/site-quick-actions-fab";
 import { SupportChatbotFab } from "@/components/site/support-chatbot-fab";
+import { WeeklyWeatherStrip } from "@/components/site/weekly-weather-strip";
 import { auth } from "@/lib/auth";
 import { siteConfig } from "@/lib/data";
 import { canAccessAdmin } from "@/lib/rbac";
@@ -132,6 +133,7 @@ export default async function RootLayout({
             showAdminPanel={showAdminPanel}
             currentUser={currentUser}
           />
+          <WeeklyWeatherStrip />
           <main id="main-content">{children}</main>
           <SiteFooter />
           <SiteQuickActionsFab />

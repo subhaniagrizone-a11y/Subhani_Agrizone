@@ -49,8 +49,11 @@ export function SignupForm() {
           const devLink = result.verifyUrl
             ? ` Open this link: ${result.verifyUrl}`
             : "";
+          const reason = result.reason
+            ? ` SMTP delivery failed (${result.reason}).`
+            : " SMTP delivery failed.";
           setMessage(
-            `Account created, but verification email was not sent because SMTP is not configured.${missing}${devLink}`,
+            `Account created, but the verification email could not be sent.${reason}${missing}${devLink}`,
           );
           return;
         }

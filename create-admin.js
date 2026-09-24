@@ -4,8 +4,12 @@ const bcrypt = require("bcryptjs");
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = "admin@subhniagrizone.com";
-  const password = "Admin@12345";
+  const email = process.env.ADMIN_EMAIL || "subhaniagrizone@gmail.com";
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (!password) {
+    throw new Error("ADMIN_PASSWORD must be set before creating an admin.");
+  }
 
   const existing = await prisma.user.findUnique({ where: { email } });
 
@@ -15,6 +19,7 @@ async function main() {
       data: {
         role: "ADMIN",
         passwordHash: await bcrypt.hash(password, 10),
+        emailVerified: new Date(),
       },
     });
     console.log("updated", existing.id);
@@ -25,6 +30,7 @@ async function main() {
         name: "Admin User",
         role: "ADMIN",
         passwordHash: await bcrypt.hash(password, 10),
+        emailVerified: new Date(),
       },
     });
     console.log("created", created.id);

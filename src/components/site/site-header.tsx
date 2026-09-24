@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { signOut } from "next-auth/react";
 import {
   ChevronDown,
   CircleUserRound,
@@ -51,6 +50,11 @@ function getInitialPalette(seed: string) {
   ];
   const index = seed.charCodeAt(0) % palettes.length;
   return palettes[index];
+}
+
+async function handleLogout() {
+  await fetch("/api/auth/logout", { method: "POST" });
+  window.location.assign("/");
 }
 
 export function SiteHeader({ showAdminPanel, currentUser }: SiteHeaderProps) {
@@ -131,7 +135,7 @@ export function SiteHeader({ showAdminPanel, currentUser }: SiteHeaderProps) {
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent hover:text-foreground"
+              className="whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent hover:text-foreground"
             >
               {item.label}
             </Link>
@@ -242,11 +246,7 @@ export function SiteHeader({ showAdminPanel, currentUser }: SiteHeaderProps) {
                   <button
                     type="button"
                     className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-destructive transition hover:bg-destructive/10"
-                    onClick={() =>
-                      signOut({
-                        redirectTo: "/",
-                      })
-                    }
+                    onClick={handleLogout}
                   >
                     <LogOut className="h-4 w-4" />
                     Logout
@@ -367,7 +367,7 @@ export function SiteHeader({ showAdminPanel, currentUser }: SiteHeaderProps) {
                   type="button"
                   variant="outline"
                   className="w-full"
-                  onClick={() => signOut({ redirectTo: "/" })}
+                  onClick={handleLogout}
                 >
                   <LogOut className="h-4 w-4" />
                   Logout

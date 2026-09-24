@@ -187,7 +187,11 @@ export async function POST(request: NextRequest) {
 
       if (sameEmail && existing.emailVerified) {
         return NextResponse.json(
-          { error: "Email already registered. Please login." },
+          {
+            error: "Email already registered. Please login.",
+            verified: true,
+            requiresLogin: true,
+          },
           { status: 409 },
         );
       }

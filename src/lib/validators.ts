@@ -48,6 +48,18 @@ export const productWriteSchema = z.object({
   stock: z.coerce.number().int().min(0).optional(),
   shortDescription: z.string().max(400).optional(),
   description: z.string().optional(),
+  status: z.enum(["DRAFT", "ACTIVE", "OUT_OF_STOCK", "ARCHIVED"]).optional(),
+  featured: z.coerce.boolean().optional(),
+  productType: z.string().max(80).optional(),
+  unit: z.string().max(80).optional(),
+  targetCrops: z.array(z.string()).optional(),
+  targetDiseases: z.array(z.string()).optional(),
+  precautions: z.string().optional(),
+  storageInstructions: z.string().optional(),
+  seoTitle: z.string().max(180).optional(),
+  seoDescription: z.string().max(220).optional(),
+  seoKeywords: z.string().max(220).optional(),
+  relatedProducts: z.array(z.string()).optional(),
   specifications: z.record(z.string(), z.unknown()).optional(),
   activeIngredients: z
     .array(
@@ -57,7 +69,16 @@ export const productWriteSchema = z.object({
       }),
     )
     .optional(),
-  imageUrls: z.array(z.string().url()).max(12).optional(),
+  imageUrls: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1)
+        .transform((value) => value.trim()),
+    )
+    .max(12)
+    .optional(),
   usage: z.string().optional(),
   dosage: z.string().optional(),
   benefits: z.array(z.string()).optional(),

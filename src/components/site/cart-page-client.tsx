@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,26 +21,37 @@ export function CartPageClient() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const syncRequestRef = useRef(0);
 
   useEffect(() => {
     const sync = async () => {
+      const requestId = ++syncRequestRef.current;
       const currentCart = getCart();
       setCart(currentCart);
       const ids = Object.keys(currentCart).filter((id) => currentCart[id] > 0);
       if (!ids.length) {
-        setProducts([]);
-        setLoading(false);
+        if (requestId === syncRequestRef.current) {
+          setProducts([]);
+          setLoading(false);
+        }
         return;
       }
       setLoading(true);
-      const rows = await fetchProductsByIds(ids);
-      setProducts(rows);
-      setLoading(false);
+      try {
+        const rows = await fetchProductsByIds(ids);
+        if (requestId === syncRequestRef.current) {
+          setProducts(rows);
+        }
+      } finally {
+        if (requestId === syncRequestRef.current) {
+          setLoading(false);
+        }
+      }
     };
 
-    sync();
+    void sync();
     return subscribeToCommerceStore(() => {
-      sync();
+      void sync();
     });
   }, []);
 
@@ -55,6 +66,39 @@ export function CartPageClient() {
 
   const shipping = subtotal > 0 && subtotal < 5000 ? 250 : 0;
   const grandTotal = subtotal + shipping;
+
+  function handleQuantityChange(productId: string, nextQuantity: number) {
+    const normalized = Math.max(0, nextQuantity);
+    setCartQuantity(productId, normalized);
+
+    setCart((previous) => {
+      const next = { ...previous };
+      if (normalized <= 0) {
+        delete next[productId];
+      } else {
+        next[productId] = normalized;
+      }
+      return next;
+    });
+
+    if (normalized <= 0) {
+      setProducts((previous) =>
+        previous.filter((product) => product.id !== productId),
+      );
+    }
+  }
+
+  function handleRemove(productId: string) {
+    removeFromCart(productId);
+    setCart((previous) => {
+      const next = { ...previous };
+      delete next[productId];
+      return next;
+    });
+    setProducts((previous) =>
+      previous.filter((product) => product.id !== productId),
+    );
+  }
 
   return (
     <section className="section-padding">
@@ -130,7 +174,7 @@ export function CartPageClient() {
                           size="icon"
                           variant="outline"
                           onClick={() =>
-                            setCartQuantity(product.id, quantity - 1)
+                            handleQuantityChange(product.id, quantity - 1)
                           }
                           aria-label="Decrease quantity"
                         >
@@ -143,7 +187,7 @@ export function CartPageClient() {
                           size="icon"
                           variant="outline"
                           onClick={() =>
-                            setCartQuantity(product.id, quantity + 1)
+                            handleQuantityChange(product.id, quantity + 1)
                           }
                           aria-label="Increase quantity"
                         >
@@ -152,7 +196,7 @@ export function CartPageClient() {
                         <Button
                           variant="ghost"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => removeFromCart(product.id)}
+                          onClick={() => handleRemove(product.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                           Remove

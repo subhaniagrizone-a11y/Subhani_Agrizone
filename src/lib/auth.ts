@@ -2,6 +2,8 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { cookies } from "next/headers";
 
+import { prisma } from "@/lib/db";
+
 const adminEmail = (
   process.env.ADMIN_EMAIL ?? "subhaniagrizone@gmail.com"
 ).toLowerCase();
@@ -9,7 +11,9 @@ const adminPassword = process.env.ADMIN_PASSWORD?.trim() ?? "";
 const authSecret =
   process.env.AUTH_SECRET ??
   process.env.NEXTAUTH_SECRET ??
-  "development-secret-change-me";
+  (process.env.NODE_ENV === "production"
+    ? undefined
+    : "development-secret-change-me");
 
 function encodeSession(payload: Record<string, unknown>) {
   return Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -37,22 +41,27 @@ export async function auth() {
   const sessionValue = cookieStore.get("sa_session")?.value;
   const payload = decodeSession(sessionValue);
 
-  if (!payload?.id) {
-    return null;
+  if (payload?.id) {
+    return {
+      user: {
+        id: payload.id,
+        name: payload.name ?? "User",
+        email: payload.email ?? undefined,
+        image: payload.image ?? null,
+        role: payload.role ?? "CUSTOMER",
+      },
+    };
   }
 
-  return {
-    user: {
-      id: payload.id,
-      name: payload.name ?? "User",
-      email: payload.email ?? undefined,
-      image: payload.image ?? null,
-      role: payload.role ?? "CUSTOMER",
-    },
-  };
+  return nextAuthAuth();
 }
 
-export const { handlers, signIn, signOut } = NextAuth({
+export const {
+  handlers,
+  auth: nextAuthAuth,
+  signIn,
+  signOut,
+} = NextAuth({
   trustHost: true,
   secret: authSecret,
   pages: {
@@ -70,6 +79,30 @@ export const { handlers, signIn, signOut } = NextAuth({
       : []),
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "google" && user.email) {
+        const databaseUser = await prisma.user.upsert({
+          where: { email: user.email.toLowerCase() },
+          update: {
+            name: user.name ?? undefined,
+            image: user.image ?? undefined,
+            emailVerified: new Date(),
+          },
+          create: {
+            email: user.email.toLowerCase(),
+            name: user.name ?? "Google User",
+            image: user.image,
+            role: "CUSTOMER",
+            emailVerified: new Date(),
+          },
+        });
+
+        user.id = databaseUser.id;
+        user.role = databaseUser.role;
+      }
+
+      return true;
+    },
     jwt({ token, user }) {
       if (user) {
         token.id = user.id;

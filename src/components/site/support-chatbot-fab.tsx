@@ -30,7 +30,7 @@ export function SupportChatbotFab() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      text: "Assalam o Alaikum. Main Subhani Agrizone support AI hoon. Aapko weather, crop disease, products, ya order me kis cheez ki help chahiye?",
+      text: "Assalam o Alaikum. Main Subhani Agrizone AI assistant hoon. Aap weather, crop disease, product guidance, pricing, ya order support ke bare me pooch sakte hain.",
     },
   ]);
 

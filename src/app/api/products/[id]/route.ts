@@ -94,10 +94,37 @@ export async function PATCH(request: NextRequest, { params }: ProductIdProps) {
   }
 
   try {
-    const hasImageUrls = Object.prototype.hasOwnProperty.call(
-      payload,
-      "imageUrls",
-    );
+    const normalizedPayload = {
+      ...payload,
+      ...(payload.categoryId
+        ? { categoryId: String(payload.categoryId).trim() }
+        : {}),
+      ...(payload.brandId ? { brandId: String(payload.brandId).trim() } : {}),
+      ...(payload.slug ? { slug: String(payload.slug).trim() } : {}),
+      ...(payload.sku ? { sku: String(payload.sku).trim() } : {}),
+      ...(payload.title ? { title: String(payload.title).trim() } : {}),
+      ...(payload.description
+        ? { description: String(payload.description).trim() }
+        : {}),
+    };
+
+    const normalizedImageUrls: string[] = Array.isArray(
+      normalizedPayload.imageUrls,
+    )
+      ? normalizedPayload.imageUrls
+          .map((url: unknown) => String(url).trim())
+          .filter(Boolean)
+          .filter((url: string) => {
+            try {
+              new URL(url);
+              return true;
+            } catch {
+              return false;
+            }
+          })
+      : [];
+
+    const hasImageUrls = normalizedImageUrls.length > 0;
     const hasActiveIngredients = Object.prototype.hasOwnProperty.call(
       payload,
       "activeIngredients",
@@ -107,8 +134,24 @@ export async function PATCH(request: NextRequest, { params }: ProductIdProps) {
       "specifications",
     );
 
-    const { imageUrls, activeIngredients, specifications, ...productData } =
-      parsed.data;
+    const {
+      imageUrls,
+      activeIngredients,
+      specifications,
+      status,
+      featured,
+      seoTitle,
+      seoDescription,
+      seoKeywords,
+      productType,
+      unit,
+      targetCrops,
+      targetDiseases,
+      precautions,
+      storageInstructions,
+      relatedProducts,
+      ...productData
+    } = parsed.data;
 
     let resolvedCategoryId: string | undefined;
     if (productData.categoryId) {
@@ -127,30 +170,47 @@ export async function PATCH(request: NextRequest, { params }: ProductIdProps) {
       }
     }
 
-    const mergedSpecifications =
-      hasSpecifications || hasActiveIngredients
+    const mergedSpecifications = {
+      ...(hasSpecifications && specifications ? specifications : {}),
+      ...(productType ? { productType } : {}),
+      ...(unit ? { unit } : {}),
+      ...(targetCrops?.length ? { targetCrops } : {}),
+      ...(targetDiseases?.length ? { targetDiseases } : {}),
+      ...(precautions ? { precautions } : {}),
+      ...(storageInstructions ? { storageInstructions } : {}),
+      ...(relatedProducts?.length ? { relatedProducts } : {}),
+      ...(seoTitle || seoDescription || seoKeywords
         ? {
-            ...(specifications ?? {}),
-            ...(hasActiveIngredients
-              ? { activeIngredients: activeIngredients ?? [] }
-              : {}),
+            seo: {
+              title: seoTitle ?? null,
+              description: seoDescription ?? null,
+              keywords: seoKeywords ?? null,
+            },
           }
-        : undefined;
+        : {}),
+      ...(hasActiveIngredients
+        ? { activeIngredients: activeIngredients ?? [] }
+        : {}),
+      ...(typeof featured === "boolean" ? { featured } : {}),
+    };
 
     const product = await withDbTimeout(
       prisma.product.update({
         where: { id },
         data: {
           ...productData,
+          ...(typeof status !== "undefined" ? { status } : {}),
           ...(resolvedCategoryId ? { categoryId: resolvedCategoryId } : {}),
-          ...(mergedSpecifications
+          ...(seoTitle ? { metaTitle: seoTitle } : {}),
+          ...(seoDescription ? { metaDescription: seoDescription } : {}),
+          ...(Object.keys(mergedSpecifications).length
             ? { specifications: mergedSpecifications as any }
             : {}),
           ...(hasImageUrls
             ? {
                 images: {
                   deleteMany: {},
-                  create: (imageUrls ?? []).map((url, index) => ({
+                  create: normalizedImageUrls.map((url, index) => ({
                     url,
                     alt: productData.title?.trim() || "Product image",
                     sortOrder: index,

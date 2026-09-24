@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Barcode,
+  Copy,
   FileSpreadsheet,
   ImagePlus,
   PackagePlus,
@@ -10,6 +11,8 @@ import {
   Save,
   Trash2,
   Pencil,
+  Download,
+  ShieldAlert,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -63,6 +66,7 @@ const emptyForm = {
   dealerPrice: "",
   farmerPrice: "",
   stock: "",
+  status: "DRAFT",
   shortDescription: "",
   description: "",
   imageUrlInput: "",
@@ -97,23 +101,57 @@ function formatApiValidationError(details: unknown) {
 export function AdminProductManager() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [form, setForm] = useState(emptyForm);
+  const loadRequestRef = useRef(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [bulkMode, setBulkMode] = useState<"create" | "update" | "delete">(
     "create",
   );
+  const [bulkReport, setBulkReport] = useState<{
+    created: number;
+    updated: number;
+    archived: number;
+    duplicates: number;
+    errors: string[];
+    details?: Array<{
+      rowNumber: number;
+      status: string;
+      message: string;
+      identifier?: string;
+    }>;
+  } | null>(null);
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
 
   async function loadProducts() {
-    const response = await fetch("/api/products?all=1");
-    const data = await response.json();
-    setProducts(data.products ?? []);
+    const requestId = ++loadRequestRef.current;
+    try {
+      const response = await fetch("/api/products?all=1");
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to load products");
+      }
+      if (requestId === loadRequestRef.current) {
+        setProducts(data.products ?? []);
+      }
+    } catch {
+      if (requestId === loadRequestRef.current) {
+        setProducts([]);
+      }
+    }
   }
 
   useEffect(() => {
-    void loadProducts();
+    const timeoutId = window.setTimeout(() => {
+      void loadProducts();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      loadRequestRef.current += 1;
+    };
   }, []);
 
   const normalizedActiveIngredients = useMemo(
@@ -128,6 +166,47 @@ export function AdminProductManager() {
     () => form.faqs.filter((row) => row.question.trim() && row.answer.trim()),
     [form.faqs],
   );
+
+  async function handleImageFilesSelection(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const files = Array.from(event.target.files ?? []);
+    if (!files.length) return;
+
+    const nextUrls: string[] = [];
+
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) continue;
+
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Unable to read image"));
+        reader.readAsDataURL(file);
+      });
+
+      nextUrls.push(dataUrl);
+    }
+
+    if (!nextUrls.length) {
+      setMessage("Please select image files only.");
+      if (event.currentTarget) {
+        event.currentTarget.value = "";
+      }
+      return;
+    }
+
+    setForm((previous) => ({
+      ...previous,
+      imageUrls: [...previous.imageUrls, ...nextUrls],
+    }));
+    setMessage(
+      `${nextUrls.length} image${nextUrls.length > 1 ? "s" : ""} added.`,
+    );
+    if (event.currentTarget) {
+      event.currentTarget.value = "";
+    }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -149,6 +228,7 @@ export function AdminProductManager() {
       dealerPrice: form.dealerPrice ? Number(form.dealerPrice) : undefined,
       farmerPrice: form.farmerPrice ? Number(form.farmerPrice) : undefined,
       stock: Number(form.stock),
+      status: form.status || "DRAFT",
       shortDescription: form.shortDescription || undefined,
       description: form.description,
       imageUrls: form.imageUrls,
@@ -184,8 +264,17 @@ export function AdminProductManager() {
       return;
     }
 
+    const savedProduct = result?.product as ProductItem | undefined;
+    setProducts((previous) => {
+      if (editingId) {
+        return previous.map((item) =>
+          item.id === editingId ? { ...item, ...(savedProduct ?? {}) } : item,
+        );
+      }
+      return savedProduct ? [savedProduct, ...previous] : previous;
+    });
     setMessage(editingId ? "Product updated." : "Product created.");
-    setForm(emptyForm);
+    setForm({ ...emptyForm });
     setEditingId(null);
     void loadProducts();
   }
@@ -193,7 +282,83 @@ export function AdminProductManager() {
   async function removeProduct(id: string) {
     const response = await fetch(`/api/products/${id}`, { method: "DELETE" });
     if (response.ok) {
+      if (editingId === id) {
+        setEditingId(null);
+        setForm({ ...emptyForm });
+      }
+      setProducts((previous) => previous.filter((item) => item.id !== id));
+      setMessage("Product archived.");
       void loadProducts();
+      return;
+    }
+
+    const result = await response.json().catch(() => null);
+    setMessage(result?.error ?? "Unable to archive product.");
+  }
+
+  async function duplicateProduct(product: ProductItem) {
+    setLoading(true);
+    setMessage("Creating product copy...");
+
+    const response = await fetch("/api/products", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ duplicateFromId: product.id }),
+    });
+    const result = await response.json();
+    setLoading(false);
+
+    if (!response.ok) {
+      setMessage(result.error ?? "Product copy failed.");
+      return;
+    }
+
+    setMessage("Product duplicated as draft.");
+    void loadProducts();
+  }
+
+  async function handleSafeCleanup() {
+    const confirmed = window.confirm(
+      "This will archive all current products and export a CSV backup. Continue?",
+    );
+    if (!confirmed) return;
+
+    setCleanupLoading(true);
+    setMessage("Creating backup and archiving products...");
+
+    try {
+      const backupResponse = await fetch(
+        "/api/products/export?includeArchived=1",
+      );
+      const backupBlob = await backupResponse.blob();
+      const backupUrl = window.URL.createObjectURL(backupBlob);
+      const link = document.createElement("a");
+      link.href = backupUrl;
+      link.download = `subhani-products-backup-${Date.now()}.csv`;
+      link.click();
+      window.URL.revokeObjectURL(backupUrl);
+
+      const archiveResponse = await fetch("/api/products/cleanup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "archive" }),
+      });
+      const archiveResult = await archiveResponse.json();
+
+      if (!archiveResponse.ok) {
+        setMessage(archiveResult.error ?? "Cleanup failed.");
+        return;
+      }
+
+      setMessage(
+        archiveResult.message ??
+          "Products archived successfully. Backup downloaded.",
+      );
+      void loadProducts();
+    } catch {
+      setMessage("Cleanup failed. Please try again.");
+    } finally {
+      setCleanupLoading(false);
     }
   }
 
@@ -264,6 +429,7 @@ export function AdminProductManager() {
       dealerPrice: product.dealerPrice ? String(product.dealerPrice) : "",
       farmerPrice: product.farmerPrice ? String(product.farmerPrice) : "",
       stock: String(product.stock),
+      status: product.status ?? "DRAFT",
       shortDescription: product.shortDescription ?? "",
       description: product.description,
       imageUrlInput: "",
@@ -298,11 +464,13 @@ export function AdminProductManager() {
 
     if (!response.ok) {
       setMessage(result.error ?? "Bulk operation failed.");
+      setBulkReport(null);
       return;
     }
 
+    setBulkReport(result);
     setMessage(
-      `Bulk ${bulkMode} finished: +${result.created ?? 0} created, ${result.updated ?? 0} updated, ${result.archived ?? 0} archived, ${result.errors?.length ?? 0} errors.`,
+      `Bulk ${bulkMode} finished: +${result.created ?? 0} created, ${result.updated ?? 0} updated, ${result.archived ?? 0} archived, ${result.duplicates ?? 0} duplicates, ${result.errors?.length ?? 0} errors.`,
     );
     setBulkFile(null);
     void loadProducts();
@@ -367,6 +535,22 @@ export function AdminProductManager() {
                   {category.name}
                 </option>
               ))}
+            </select>
+          </label>
+
+          <label className="grid gap-2 text-sm font-semibold">
+            Status
+            <select
+              value={form.status}
+              onChange={(event) =>
+                setForm({ ...form, status: event.target.value })
+              }
+              className="h-11 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="DRAFT">Draft</option>
+              <option value="ACTIVE">Active</option>
+              <option value="OUT_OF_STOCK">Out of stock</option>
+              <option value="ARCHIVED">Archived</option>
             </select>
           </label>
 
@@ -602,13 +786,23 @@ export function AdminProductManager() {
           <div className="grid gap-3 text-sm font-semibold lg:col-span-2">
             <p>Product images</p>
 
+            <div className="rounded-md border border-dashed border-border bg-background p-3 text-sm text-muted-foreground">
+              <p className="font-semibold text-foreground">
+                Add product images from a CDN or image host
+              </p>
+              <p className="mt-1 text-xs">
+                Please upload the image to a storage/CDN service first, then
+                paste the public URL here.
+              </p>
+            </div>
+
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 value={form.imageUrlInput}
                 onChange={(event) =>
                   setForm({ ...form, imageUrlInput: event.target.value })
                 }
-                placeholder="Paste image URL and click Add"
+                placeholder="https://example.com/image.jpg"
               />
               <Button
                 type="button"
@@ -624,26 +818,19 @@ export function AdminProductManager() {
                   });
                 }}
               >
-                Add
+                Add image
               </Button>
             </div>
 
-            <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
-              Upload images (URL upload only)
+            <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+              Upload images from your device
               <input
                 type="file"
                 accept="image/*"
                 multiple
-                className="text-xs"
+                className="hidden"
                 onChange={(event) => {
-                  const input = event.currentTarget;
-                  const files = Array.from(event.target.files ?? []);
-                  if (files.length) {
-                    setMessage(
-                      "Direct file upload disabled for memory safety. Please upload files to storage/CDN and paste image URLs.",
-                    );
-                  }
-                  input.value = "";
+                  void handleImageFilesSelection(event);
                 }}
               />
             </label>
@@ -735,8 +922,31 @@ export function AdminProductManager() {
             Required headers for create/update: title, slug, sku, categoryId,
             price, stock, description. Optional: id, barcode, brandId,
             salePrice, wholesalePrice, dealerPrice, farmerPrice, usage, dosage.
-            For delete mode, provide one of: id, slug, or sku.
+            Duplicate rows are flagged instead of silently creating broken
+            records. For delete mode, provide one of: id, slug, or sku.
           </p>
+          <div className="mt-4 rounded-md border border-border bg-background p-3 text-sm">
+            <div className="flex items-center gap-2 font-semibold text-foreground">
+              <ShieldAlert className="h-4 w-4 text-amber-600" />
+              Safe cleanup option
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Before replacing the catalog, download a CSV backup and archive
+              the current products in one step.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-3"
+              onClick={handleSafeCleanup}
+              disabled={cleanupLoading}
+            >
+              <Download className="h-4 w-4" />
+              {cleanupLoading
+                ? "Working..."
+                : "Backup + archive current products"}
+            </Button>
+          </div>
           <Button
             className="mt-4 w-full"
             variant="luxury"
@@ -746,6 +956,43 @@ export function AdminProductManager() {
             {bulkLoading ? "Processing CSV..." : `Run bulk ${bulkMode}`}
           </Button>
         </form>
+
+        {bulkReport ? (
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-6">
+            <h3 className="text-lg font-semibold">Import report</h3>
+            <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+              <div className="rounded-md border border-border bg-background p-3">
+                <p className="font-semibold text-foreground">Created</p>
+                <p>{bulkReport.created}</p>
+              </div>
+              <div className="rounded-md border border-border bg-background p-3">
+                <p className="font-semibold text-foreground">Updated</p>
+                <p>{bulkReport.updated}</p>
+              </div>
+              <div className="rounded-md border border-border bg-background p-3">
+                <p className="font-semibold text-foreground">Archived</p>
+                <p>{bulkReport.archived}</p>
+              </div>
+            </div>
+            {bulkReport.details?.length ? (
+              <div className="mt-4 max-h-52 overflow-auto rounded-md border border-border bg-background p-3 text-sm">
+                {bulkReport.details.map((item) => (
+                  <div
+                    key={`${item.rowNumber}-${item.message}`}
+                    className="flex items-start justify-between gap-3 border-b border-border/60 py-2 last:border-b-0"
+                  >
+                    <span>
+                      Row {item.rowNumber}: {item.message}
+                    </span>
+                    <span className="text-xs uppercase text-muted-foreground">
+                      {item.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-6">
           <div className="flex items-center justify-between gap-3">
@@ -788,6 +1035,14 @@ export function AdminProductManager() {
                           onClick={() => startEdit(product)}
                         >
                           <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void duplicateProduct(product)}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           type="button"

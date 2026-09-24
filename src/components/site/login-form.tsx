@@ -18,41 +18,34 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
 
     try {
       const email = String(formData.get("email") ?? "");
-      const provider = mode === "email" ? "email-login" : "phone-login";
-      const result = await signIn(provider, {
-        redirect: false,
-        email,
-        password: String(formData.get("password") ?? ""),
-        phone: String(formData.get("phone") ?? ""),
-        otp: String(formData.get("otp") ?? ""),
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password: String(formData.get("password") ?? ""),
+          phone: String(formData.get("phone") ?? ""),
+          otp: String(formData.get("otp") ?? ""),
+          mode,
+        }),
       });
 
-      if (result?.error) {
-        if (mode === "email") {
-          try {
-            const statusRes = await fetch("/api/auth/verification-status", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ email }),
-            });
-            if (statusRes.ok) {
-              const status = await statusRes.json();
-              if (status.exists && !status.verified) {
-                setMessage("Please verify your Gmail first, then login.");
-                return;
-              }
-            }
-          } catch {
-            setMessage("Unable to check verification status. Please retry.");
-            return;
-          }
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (mode === "email" && data?.reason === "email-unverified") {
+          setMessage("Please verify your Gmail first, then login.");
+          return;
         }
 
-        setMessage("Login failed. Check your credentials and try again.");
+        setMessage(
+          data?.error ?? "Login failed. Check your credentials and try again.",
+        );
         return;
       }
 
-      window.location.href = "/dashboard";
+      window.location.href =
+        data?.redirect ?? (data?.role === "ADMIN" ? "/admin" : "/dashboard");
     } catch {
       setMessage("Something went wrong while signing in. Please try again.");
     } finally {
@@ -89,7 +82,14 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
         </button>
       </div>
 
-      <form action={submit} className="mt-6 grid gap-4">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const formData = new FormData(event.currentTarget);
+          void submit(formData);
+        }}
+        className="mt-6 grid gap-4"
+      >
         {mode === "email" ? (
           <>
             <label className="grid gap-2 text-sm font-semibold">

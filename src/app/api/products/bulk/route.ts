@@ -90,6 +90,35 @@ function parseCsv(text: string) {
   });
 }
 
+function normalizeBulkRow(row: Record<string, string>) {
+  const title = row.title || row.Name || row.name || "";
+  const slug = row.slug || row.Slug || "";
+  const sku = row.sku || row.SKU || row.ID || "";
+  const price = row.price || row["Regular price"] || row["Sale price"] || "";
+  const salePrice = row["Sale price"] || row["Regular price"] || "";
+  const stock = row.stock || row.Stock || row["Stock"] || "";
+  const description =
+    row.description || row.Description || row["Short description"] || "";
+  const categoryId = row.categoryId || row.Categories || row.Category || "";
+  const brandId = row.brandId || row.Brands || row.Brand || "";
+  const images = row.images || row.Images || "";
+  const status = row.status || "ACTIVE";
+
+  return {
+    title,
+    slug,
+    sku,
+    price,
+    salePrice,
+    stock,
+    description,
+    categoryId,
+    brandId,
+    images,
+    status,
+  };
+}
+
 export async function POST(request: NextRequest) {
   const blocked = await requireApiPermission("products:bulk");
   if (blocked) return blocked;
@@ -124,15 +153,53 @@ export async function POST(request: NextRequest) {
     created: 0,
     updated: 0,
     archived: 0,
+    duplicates: 0,
     errors: [] as string[],
+    details: [] as Array<{
+      rowNumber: number;
+      status: "success" | "duplicate" | "failed";
+      message: string;
+      identifier?: string;
+    }>,
   };
 
-  for (const row of rows) {
+  rows.forEach((row, index) => {
+    const normalizedRow = normalizeBulkRow(row);
+    const rowNumber = index + 2;
+    const identifier =
+      row.id || normalizedRow.slug || normalizedRow.sku || "unknown";
+    if (
+      !normalizedRow.title &&
+      !normalizedRow.slug &&
+      !normalizedRow.sku &&
+      mode !== "delete"
+    ) {
+      results.errors.push(`Missing required fields for row ${rowNumber}`);
+      results.details.push({
+        rowNumber,
+        status: "failed",
+        message: "Missing required fields",
+        identifier,
+      });
+    }
+  });
+
+  for (const [index, row] of rows.entries()) {
+    const normalizedRow = normalizeBulkRow(row);
+    const rowNumber = index + 2;
+    const identifier =
+      row.id || normalizedRow.slug || normalizedRow.sku || "unknown";
     try {
       if (mode === "delete") {
         const identifier = row.id || row.slug || row.sku;
         if (!identifier) {
-          results.errors.push("Missing id/slug/sku for delete row");
+          results.errors.push(`Missing id/slug/sku for row ${rowNumber}`);
+          results.details.push({
+            rowNumber,
+            status: "failed",
+            message: "Missing id/slug/sku for delete row",
+            identifier,
+          });
           continue;
         }
 
@@ -144,6 +211,12 @@ export async function POST(request: NextRequest) {
 
         if (!existing) {
           results.errors.push(`Product not found for delete: ${identifier}`);
+          results.details.push({
+            rowNumber,
+            status: "failed",
+            message: `Product not found for delete: ${identifier}`,
+            identifier,
+          });
           continue;
         }
 
@@ -152,23 +225,29 @@ export async function POST(request: NextRequest) {
           data: { status: "ARCHIVED" },
         });
         results.archived += 1;
+        results.details.push({
+          rowNumber,
+          status: "success",
+          message: `Archived ${identifier}`,
+          identifier,
+        });
         continue;
       }
 
       const candidate = {
-        title: row.title || undefined,
-        slug: row.slug || undefined,
-        sku: row.sku || undefined,
+        title: normalizedRow.title || undefined,
+        slug: normalizedRow.slug || undefined,
+        sku: normalizedRow.sku || undefined,
         barcode: row.barcode || undefined,
-        categoryId: row.categoryId || undefined,
-        brandId: row.brandId || undefined,
-        price: row.price || undefined,
-        salePrice: row.salePrice || undefined,
+        categoryId: normalizedRow.categoryId || undefined,
+        brandId: normalizedRow.brandId || undefined,
+        price: normalizedRow.price || undefined,
+        salePrice: normalizedRow.salePrice || undefined,
         wholesalePrice: row.wholesalePrice || undefined,
         dealerPrice: row.dealerPrice || undefined,
         farmerPrice: row.farmerPrice || undefined,
-        stock: row.stock || undefined,
-        description: row.description || undefined,
+        stock: normalizedRow.stock || undefined,
+        description: normalizedRow.description || undefined,
         usage: row.usage || undefined,
         dosage: row.dosage || undefined,
       };
@@ -178,15 +257,27 @@ export async function POST(request: NextRequest) {
         results.errors.push(
           `Invalid row (${row.sku || row.slug || "unknown"})`,
         );
+        results.details.push({
+          rowNumber,
+          status: "failed",
+          message: "Invalid values or missing required fields",
+          identifier,
+        });
         continue;
       }
 
       const { imageUrls, activeIngredients, specifications, ...productData } =
         parsed.data;
 
+      const { relatedProducts, ...restProductData } =
+        productData as typeof productData & {
+          relatedProducts?: string[];
+        };
+
       const mergedSpecifications = {
         ...(specifications ?? {}),
         activeIngredients: activeIngredients ?? [],
+        ...(relatedProducts?.length ? { relatedProducts } : {}),
       };
 
       const explicitCategoryId = productData.categoryId?.trim();
@@ -211,6 +302,12 @@ export async function POST(request: NextRequest) {
         results.errors.push(
           `Category not found for row (${row.sku || row.slug || "unknown"})`,
         );
+        results.details.push({
+          rowNumber,
+          status: "failed",
+          message: "Category not found",
+          identifier,
+        });
         continue;
       }
 
@@ -218,11 +315,22 @@ export async function POST(request: NextRequest) {
         where: {
           OR: [
             ...(row.id ? [{ id: row.id }] : []),
-            ...(row.slug ? [{ slug: row.slug }] : []),
-            ...(row.sku ? [{ sku: row.sku }] : []),
+            ...(normalizedRow.slug ? [{ slug: normalizedRow.slug }] : []),
+            ...(normalizedRow.sku ? [{ sku: normalizedRow.sku }] : []),
           ],
         },
       });
+
+      if (existing && mode === "create") {
+        results.duplicates += 1;
+        results.details.push({
+          rowNumber,
+          status: "duplicate",
+          message: `Duplicate product detected for ${identifier}`,
+          identifier,
+        });
+        continue;
+      }
 
       if (!existing || mode === "create") {
         const title =
@@ -237,7 +345,7 @@ export async function POST(request: NextRequest) {
 
         await prisma.product.create({
           data: {
-            ...productData,
+            ...restProductData,
             title,
             slug,
             sku,
@@ -266,12 +374,18 @@ export async function POST(request: NextRequest) {
           },
         });
         results.created += 1;
+        results.details.push({
+          rowNumber,
+          status: "success",
+          message: `Created ${title}`,
+          identifier,
+        });
       } else {
         const safeImageUrls = imageUrls ?? [];
         await prisma.product.update({
           where: { id: existing.id },
           data: {
-            ...productData,
+            ...restProductData,
             categoryId: category.id,
             specifications: mergedSpecifications as any,
             images: {
@@ -285,9 +399,21 @@ export async function POST(request: NextRequest) {
           },
         });
         results.updated += 1;
+        results.details.push({
+          rowNumber,
+          status: "success",
+          message: `Updated ${existing.slug}`,
+          identifier,
+        });
       }
     } catch (error) {
       results.errors.push(`Row failed: ${(error as Error).message}`);
+      results.details.push({
+        rowNumber,
+        status: "failed",
+        message: (error as Error).message,
+        identifier,
+      });
     }
   }
 

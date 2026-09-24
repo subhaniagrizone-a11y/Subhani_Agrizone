@@ -23,7 +23,6 @@ import {
   adminOverviewLinks,
   adminTrafficSeries,
 } from "@/lib/admin-config";
-import { recentOrders } from "@/lib/data";
 import { prisma } from "@/lib/db";
 
 export const metadata: Metadata = {
@@ -40,17 +39,29 @@ export default async function AdminDashboardPage() {
   const [
     ordersCount,
     productsCount,
+    activeProductsCount,
+    draftProductsCount,
+    outOfStockProductsCount,
     customersCount,
+    newCustomersCount,
     inquiriesCount,
     recentInquiries,
     pendingOrdersCount,
+    completedOrdersCount,
+    canceledOrdersCount,
     openInquiriesCount,
     lowStockProductsCount,
     previousTrafficSeed,
+    recentOrders,
+    recentProducts,
   ] = await Promise.all([
     prisma.order.count().catch(() => 0),
     prisma.product.count().catch(() => 0),
+    prisma.product.count({ where: { status: "ACTIVE" } }).catch(() => 0),
+    prisma.product.count({ where: { status: "DRAFT" } }).catch(() => 0),
+    prisma.product.count({ where: { status: "OUT_OF_STOCK" } }).catch(() => 0),
     prisma.user.count().catch(() => 0),
+    prisma.user.count({ where: { createdAt: { gte: start } } }).catch(() => 0),
     prisma.inquiry.count().catch(() => 0),
     prisma.inquiry
       .findMany({
@@ -62,6 +73,8 @@ export default async function AdminDashboardPage() {
     prisma.order
       .count({ where: { status: { in: ["PENDING", "PROCESSING"] } } })
       .catch(() => 0),
+    prisma.order.count({ where: { status: "DELIVERED" } }).catch(() => 0),
+    prisma.order.count({ where: { status: "CANCELLED" } }).catch(() => 0),
     prisma.inquiry
       .count({ where: { status: { in: ["NEW", "OPEN"] } } })
       .catch(() => 0),
@@ -82,6 +95,32 @@ export default async function AdminDashboardPage() {
           },
         },
         select: { createdAt: true },
+      })
+      .catch(() => []),
+    prisma.order
+      .findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          grandTotal: true,
+          createdAt: true,
+        },
+      })
+      .catch(() => []),
+    prisma.product
+      .findMany({
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          stock: true,
+          status: true,
+          price: true,
+        },
       })
       .catch(() => []),
   ]);
@@ -156,21 +195,38 @@ export default async function AdminDashboardPage() {
         ? "Needs review"
         : "Attention";
 
-  const dashboardStats = adminDashboardStats.map((item) => {
-    if (item.label.toLowerCase().includes("order")) {
-      return { ...item, value: String(ordersCount) };
-    }
-    if (item.label.toLowerCase().includes("customer")) {
-      return { ...item, value: String(customersCount) };
-    }
-    if (item.label.toLowerCase().includes("product")) {
-      return { ...item, value: String(productsCount) };
-    }
-    if (item.label.toLowerCase().includes("inquir")) {
-      return { ...item, value: String(inquiriesCount) };
-    }
-    return item;
-  });
+  const dashboardStats = [
+    {
+      label: "Total products",
+      value: String(productsCount),
+      change: `${activeProductsCount} active`,
+    },
+    {
+      label: "Published products",
+      value: String(activeProductsCount),
+      change: `${draftProductsCount} drafts`,
+    },
+    {
+      label: "Out-of-stock",
+      value: String(outOfStockProductsCount),
+      change: `${lowStockProductsCount} low stock`,
+    },
+    {
+      label: "Total orders",
+      value: String(ordersCount),
+      change: `${pendingOrdersCount} pending`,
+    },
+    {
+      label: "Completed orders",
+      value: String(completedOrdersCount),
+      change: `${canceledOrdersCount} cancelled`,
+    },
+    {
+      label: "Customers",
+      value: String(customersCount),
+      change: `${newCustomersCount} new`,
+    },
+  ];
 
   const liveActivity = recentInquiries.length
     ? recentInquiries.map((item) => ({
@@ -185,6 +241,11 @@ export default async function AdminDashboardPage() {
     { label: "Products", value: String(productsCount) },
     { label: "Customers", value: String(customersCount) },
     { label: "Inquiries", value: String(inquiriesCount) },
+    {
+      label: "Published products",
+      value: String(activeProductsCount),
+      tone: activeProductsCount > 0 ? "ok" : "warn",
+    },
     {
       label: "Pending orders",
       value: String(pendingOrdersCount),
@@ -212,12 +273,12 @@ export default async function AdminDashboardPage() {
     },
   ];
 
-  const topProducts: {
-    id: string;
-    title: string;
-    category: string;
-    stock: number;
-  }[] = [];
+  const topProducts = recentProducts.map((product) => ({
+    id: product.id,
+    title: product.title,
+    category: product.status,
+    stock: product.stock,
+  }));
   const quickActions = [
     {
       label: "Create product",
@@ -396,10 +457,12 @@ export default async function AdminDashboardPage() {
                     key={order.id}
                     className="border-b border-border last:border-0"
                   >
-                    <td className="py-4 font-semibold">{order.id}</td>
-                    <td className="py-4">{order.customer}</td>
-                    <td className="py-4">{order.city}</td>
-                    <td className="py-4">{order.total}</td>
+                    <td className="py-4 font-semibold">{order.orderNumber}</td>
+                    <td className="py-4">{order.orderNumber}</td>
+                    <td className="py-4">—</td>
+                    <td className="py-4">
+                      {order.grandTotal.toLocaleString("en-PK")}
+                    </td>
                     <td className="py-4">
                       <Badge variant="secondary">{order.status}</Badge>
                     </td>

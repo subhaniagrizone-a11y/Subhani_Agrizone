@@ -63,11 +63,20 @@ export async function GET(request: NextRequest) {
     includeAll = !blocked;
   }
 
+  const includeArchived =
+    request.nextUrl.searchParams.get("includeArchived") === "1";
+
   try {
     const products = await prisma.product.findMany({
       where: {
         ...(ids.length ? { id: { in: ids } } : {}),
         ...(includeAll ? {} : { status: { in: ["ACTIVE", "DRAFT"] as const } }),
+        ...(!includeArchived && !includeAll
+          ? { status: { not: "ARCHIVED" } }
+          : {}),
+        ...(!includeArchived && includeAll
+          ? { status: { not: "ARCHIVED" } }
+          : {}),
         ...(search
           ? {
               OR: [
@@ -119,6 +128,10 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   const payload = await request.json();
+  const duplicateFromId =
+    typeof payload?.duplicateFromId === "string"
+      ? payload.duplicateFromId.trim()
+      : "";
   const parsed = productWriteSchema.safeParse(payload);
 
   if (!parsed.success) {
@@ -128,8 +141,89 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { imageUrls, activeIngredients, specifications, ...productData } =
-    parsed.data;
+  const {
+    imageUrls,
+    activeIngredients,
+    specifications,
+    status,
+    featured,
+    seoTitle,
+    seoDescription,
+    seoKeywords,
+    productType,
+    unit,
+    targetCrops,
+    targetDiseases,
+    precautions,
+    storageInstructions,
+    relatedProducts,
+    ...productData
+  } = parsed.data;
+
+  if (duplicateFromId) {
+    const source = await prisma.product.findUnique({
+      where: { id: duplicateFromId },
+      include: { images: true },
+    });
+
+    if (!source) {
+      return NextResponse.json(
+        { error: "Source product not found" },
+        { status: 404 },
+      );
+    }
+
+    const title = `${source.title} (Copy)`;
+    const slugBase = slugify(title);
+    const slug = await ensureUniqueSlug(slugBase);
+    const sku = await ensureUniqueSku(`COPY-${Date.now()}`);
+
+    const product = await prisma.product.create({
+      data: {
+        ...productData,
+        title,
+        slug,
+        sku,
+        categoryId: source.categoryId,
+        brandId: source.brandId ?? undefined,
+        description:
+          source.description ||
+          productData.description ||
+          "Product details will be updated soon.",
+        shortDescription:
+          source.shortDescription ?? productData.shortDescription,
+        price: Number(source.price ?? 0),
+        salePrice: source.salePrice ?? undefined,
+        wholesalePrice: source.wholesalePrice ?? undefined,
+        dealerPrice: source.dealerPrice ?? undefined,
+        farmerPrice: source.farmerPrice ?? undefined,
+        stock: 0,
+        benefits: source.benefits ?? [],
+        safetyInstructions: source.safetyInstructions ?? [],
+        specifications: {
+          ...(source.specifications as Record<string, unknown> | undefined),
+          activeIngredients:
+            (source.specifications as Record<string, unknown> | undefined)
+              ?.activeIngredients ?? [],
+          featured: false,
+        } as any,
+        ...(source.images.length
+          ? {
+              images: {
+                create: source.images.map((image, index) => ({
+                  url: image.url,
+                  alt: title,
+                  sortOrder: index,
+                })),
+              },
+            }
+          : {}),
+        status: "DRAFT",
+      },
+    });
+
+    return NextResponse.json({ product }, { status: 201 });
+  }
 
   const title = productData.title?.trim() || "Untitled Product";
   const slugBase = slugify(productData.slug?.trim() || title);
@@ -161,8 +255,41 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const safeImageUrls = imageUrls ?? [];
+  const safeImageUrls = (imageUrls ?? [])
+    .map((url) => String(url).trim())
+    .filter(Boolean)
+    .filter((url) => {
+      try {
+        new URL(url);
+        return true;
+      } catch {
+        return false;
+      }
+    });
   const safeActiveIngredients = activeIngredients ?? [];
+  const mergedSpecifications = {
+    ...(specifications ?? {}),
+    ...(productType ? { productType } : {}),
+    ...(unit ? { unit } : {}),
+    ...(targetCrops?.length ? { targetCrops } : {}),
+    ...(targetDiseases?.length ? { targetDiseases } : {}),
+    ...(precautions ? { precautions } : {}),
+    ...(storageInstructions ? { storageInstructions } : {}),
+    ...(relatedProducts?.length ? { relatedProducts } : {}),
+    ...(seoTitle || seoDescription || seoKeywords
+      ? {
+          seo: {
+            title: seoTitle ?? null,
+            description: seoDescription ?? null,
+            keywords: seoKeywords ?? null,
+          },
+        }
+      : {}),
+    ...(safeActiveIngredients.length
+      ? { activeIngredients: safeActiveIngredients }
+      : {}),
+    ...(typeof featured === "boolean" ? { featured } : {}),
+  };
 
   const product = await prisma.product.create({
     data: {
@@ -178,10 +305,9 @@ export async function POST(request: NextRequest) {
       stock: productData.stock ?? 0,
       benefits: productData.benefits ?? [],
       safetyInstructions: productData.safetyInstructions ?? [],
-      specifications: {
-        ...(specifications ?? {}),
-        activeIngredients: safeActiveIngredients,
-      } as any,
+      ...(seoTitle ? { metaTitle: seoTitle } : {}),
+      ...(seoDescription ? { metaDescription: seoDescription } : {}),
+      specifications: mergedSpecifications as any,
       ...(safeImageUrls.length
         ? {
             images: {
@@ -193,7 +319,7 @@ export async function POST(request: NextRequest) {
             },
           }
         : {}),
-      status: "ACTIVE",
+      status: status ?? "ACTIVE",
     },
   });
 
