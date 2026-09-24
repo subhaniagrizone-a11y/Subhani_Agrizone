@@ -6,17 +6,19 @@ This document deploys the existing Next.js application to Spaceship Web Hosting 
 
 - Node.js version: `24.x` (the hosting server may show `24.20.0`)
 - Application mode: `Production`
-- Application root: `subhni-app`
+- Git clone path: `repositories/Subhani_Agrizone`
+- cPanel application root: choose the application directory configured in cPanel (for example, `subhni-app`)
 - Startup file: `server.js`
 - Temporary test URL: `https://test.subhaniagrizone.com`
 - Main domain: leave `https://subhaniagrizone.com` unchanged during testing
 
-In cPanel, create the Node.js application with the settings above. Passenger supplies `PORT`; `server.js` binds the existing Next.js application to `0.0.0.0` and does not use a fixed production port.
+In cPanel, create the Node.js application with the settings above and point its application root at the directory containing the cloned project files. The Git clone directory and the cPanel application root do not need to be the same directory. Passenger supplies `PORT`; `server.js` binds the existing Next.js application to `0.0.0.0` and does not use a fixed production port.
 
 ## Upload and build
 
-1. Upload the repository contents into the cPanel application root `subhni-app`. Do not upload `.env`, `.env.local`, or any file containing credentials.
-2. In the application root, install dependencies:
+1. Clone or upload the repository into `repositories/Subhani_Agrizone`. Do not upload `.env`, `.env.local`, or any file containing credentials.
+2. Configure the cPanel Node.js application's application root to the cloned project directory, or to a separately copied project directory containing the same files.
+3. In the configured application root, install dependencies:
 
    ```bash
    npm install
@@ -24,7 +26,7 @@ In cPanel, create the Node.js application with the settings above. Passenger sup
    npm run build
    ```
 
-3. Set the cPanel Node.js application startup file to `server.js` and restart the application.
+4. Set the cPanel Node.js application startup file to `server.js` and restart the application.
 
 `npm run prisma:generate` only generates Prisma Client. Do not run `prisma migrate reset`, database-clearing scripts, or the seed script against production. The application uses MongoDB and does not use Prisma SQL migrations.
 

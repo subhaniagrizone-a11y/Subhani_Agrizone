@@ -63,9 +63,9 @@ npm run lint          # ESLint checking
 
 ### Connection Details
 
-- **Host:** mongodb+srv://cluster0.kin3czy.mongodb.net
-- **Database:** subhni_agrizone
-- **Auth:** Enabled (User: subhani)
+- **Host:** Configure through `MONGODB_URI` or `DATABASE_URL` in `.env.local`
+- **Database:** Configure in the MongoDB connection string
+- **Auth:** Enabled through the environment-provided connection string
 - **Status:** ✅ Active and Verified
 
 ---
